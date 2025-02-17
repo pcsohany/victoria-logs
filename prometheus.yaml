@@ -9,7 +9,7 @@ scrape_configs:
   - job_name: 'Victoria-Logs'
     static_configs:
       - targets:
-          - localhost:9428
+          - docker-victoria-logs-1:9428
 rule_files:
   - "rule/alerts.yml"
   - "rule/recording_rule.yml"
