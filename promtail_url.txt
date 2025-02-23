@@ -1,0 +1,1 @@
+  - url: http://docker-victoria-logs-1:9428/insert/loki/api/v1/push
