@@ -4,7 +4,9 @@ logging {
 }
 
 otelcol.receiver.otlp "default" {
-  http {}
+  http {
+    endpoint="0.0.0.0:4318"
+  }
   grpc {}
 
   output {
