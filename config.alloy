@@ -17,7 +17,7 @@ otelcol.receiver.otlp "default" {
 
 otelcol.processor.batch "default" {
   output {
-    traces  = [otelcol.exporter.prometheus.tempo.input]
+    traces  = [otelcol.exporter.otlphttp.tempo.input]
     metrics = [otelcol.exporter.prometheus.default.input]
     logs    = [otelcol.exporter.prometheus.default.input]
   }
