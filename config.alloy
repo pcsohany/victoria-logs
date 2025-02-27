@@ -5,9 +5,8 @@ logging {
 
 otelcol.receiver.otlp "default" {
   http {
-    endpoint="0.0.0.0:4318"
+    endpoint="0.0.0.0:4320"
   }
-  grpc {}
 
   output {
     traces  = [otelcol.processor.batch.default.input]
@@ -18,7 +17,7 @@ otelcol.receiver.otlp "default" {
 
 otelcol.processor.batch "default" {
   output {
-    traces  = [otelcol.exporter.prometheus.default.input]
+    traces  = [otelcol.exporter.prometheus.tempo.input]
     metrics = [otelcol.exporter.prometheus.default.input]
     logs    = [otelcol.exporter.prometheus.default.input]
   }
@@ -36,4 +35,20 @@ prometheus.remote_write "default" {
       password = "password"
     }
   }
+}
+
+otelcol.processor.batch "tempo" {
+  output {
+    traces  = [otelcol.exporter.otlphttp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlphttp "tempo" {
+    client {
+        endpoint = "http://tempo:4318"
+        tls {
+            insecure             = true
+            insecure_skip_verify = true
+        }
+    }
 }
