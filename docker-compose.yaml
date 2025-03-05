@@ -1,0 +1,122 @@
+services:
+
+  tempo:
+    image: grafana/tempo:latest
+    volumes:
+      - ./shared/tempo:/etc
+      - ./tempo-data:/var/tempo
+    ports:
+      - "4320:4317"  # otlp grpc
+      - "4321:4318"  # otlp http
+    entrypoint: sh -c "wget --no-check-certificate -O /etc/tempo.yml https://raw.githubusercontent.com/pcsohany/victoria-logs/refs/heads/main/tempo.yml && exec /tempo -config.file=/etc/tempo.yml"
+
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./shared/prometheus/:/etc/prometheus
+    ports:
+      - "9090:9090"
+    entrypoint: sh -c "mkdir -p /etc/prometheus/config && wget --no-check-certificate -O /etc/prometheus/config/prometheus-local.yml https://raw.githubusercontent.com/pcsohany/victoria-logs/refs/heads/main/prometheus.yaml && exec /bin/prometheus --config.file=/etc/prometheus/config/prometheus-local.yml --web.enable-remote-write-receiver"
+
+  loki:
+    image: grafana/loki:latest
+    command:
+      - "-config.file=/etc/loki/local-config.yaml"  
+    volumes:
+      - ./shared/loki/chunks:/loki/chunks/
+      - ./shared/loki/rules:/loki/rules/
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    command:
+      - "-config.file=./etc/promtail/config.yml"
+    ports:
+      - "5140:5140"
+    volumes:
+      - ./shared/logs:/var/log
+      - ./shared/etc/promtail:/etc/promtail #mounting config file from local directory to container
+    depends_on:
+      - loki
+
+  victoria-logs:
+    image: victoriametrics/victoria-logs:v1.10.1-victorialogs
+    command:
+      - -storageDataPath=/var/storageData
+      - -retention.maxDiskSpaceUsageBytes=1GiB
+    ports:
+      - "9428:9428"
+    volumes:
+      - ./shared/logs2:/var/log
+
+  alloy:
+    image: grafana/alloy:latest  
+    command:
+      - "-config.file=/etc/alloy/config.alloy"  
+    volumes:
+      - ./shared/alloy:/etc/alloy
+    ports:
+      - "4317:4317"  
+      - "4318:4318"
+    entrypoint: sh -c "apt-get update -y && apt-get -y install wget && wget --no-check-certificate -O /etc/alloy/config.alloy https://raw.githubusercontent.com/pcsohany/victoria-logs/refs/heads/main/config.alloy && exec /bin/alloy run /etc/alloy/config.alloy"
+
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - ./shared/grafana/provisioning/datasources/:/etc/grafana/provisioning/datasources
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      - GF_INSTALL_PLUGINS=victoriametrics-logs-datasource,victoriametrics-metrics-datasource
+    ports:
+      - "3000:3000"
+    entrypoint: sh -c "wget --no-check-certificate -O /etc/grafana/provisioning/datasources/datasources.yml https://raw.githubusercontent.com/pcsohany/victoria-logs/refs/heads/main/docker_compose_grafana_datasources.yaml && exec sh /run.sh"
+
+  shoehub:
+    image: hancosy1986/shoeshop:latest
+    ports:
+      - "8001:8080"
+
+  orderservice:
+    image: hancosy1986/orderservice:latest
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - OtelMetricCollector__Host=http://alloy:4318/v1/metrics
+      - OtelTraceCollector__Host=http://alloy:4318/v1/traces
+    depends_on:
+      - alloy
+    ports:
+      - "5000:80"
+  
+  paymentservice:
+    image: hancosy1986/paymentservice:latest
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - OtelTraceCollector__Host=http://alloy:4318/v1/traces
+  
+  stimulator:
+    image: hancosy1986/stimulator
+    depends_on:
+      - orderservice
+      - paymentservice 
+    
+  victoria-metrics:
+    image: victoriametrics/victoria-metrics:v1.111.0
+    command:
+      - -storageDataPath=/vmsingle
+      - -loggerFormat=json
+    ports:
+      - "8428:8428"
+    volumes:
+      - ./shared/victoria-metrics:/vmsingle
+
+
+
+volumes:
+  prometheus-data:
+  tempo-data:
+  victoria-logs-data:
+
